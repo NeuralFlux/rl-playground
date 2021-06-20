@@ -5,6 +5,8 @@ A = 1, Ace can only be with 2, 3, ...
 
 from deck_of_cards.deck_of_cards import Card, DeckOfCards
 
+from copy import deepcopy
+
 
 def create_empty_deck():
     deck_obj = DeckOfCards()
@@ -95,7 +97,48 @@ class Game(object):
 
             # check if the player won
             score = self._get_score(idx)
+            game_over = (score == 0)
             return (game_over, idx if game_over else None)
 
     def _get_score(self, player_idx):
-        pass
+        num_sequences, num_triplets = 0, 0
+
+        dup_deck = deepcopy(self.player_decks[player_idx]).order_deck()
+        orig_set_limits = self._get_orig_set(dup_deck)
+
+    def _get_orig_set(self, deck):
+
+        # iterate reverse to find biggest sequences first
+        for idx in range(len(deck) - 1, -1, -1):
+            card = deck[idx]
+            # skip joker card
+            if card.suit == 4:
+                continue
+
+            seq_suit, curr_rank = card.suit, card.rank
+            seq_idx = 1
+            temp_card = deck[idx - seq_idx]
+            # print("For", idx, seq_suit, curr_rank)
+
+            # for each card, try to match a sequence
+            while temp_card.rank >= curr_rank - 1:
+                # print("While", seq_suit, curr_rank, seq_idx)
+                # print("While", temp_card.suit, temp_card.rank)
+                if temp_card.suit == seq_suit \
+                  and temp_card.rank == curr_rank - 1:
+                    curr_rank -= 1
+                    # print("Dec", curr_rank)
+                else:
+                    if seq_idx >= 3:
+                        return (idx - seq_idx, idx)
+                    else:
+                        break
+
+                seq_idx += 1
+                temp_idx = idx - seq_idx
+                if temp_idx < 0:
+                    return (temp_idx + 1, idx)
+                else:
+                    temp_card = deck[temp_idx]
+        else:
+            return None
