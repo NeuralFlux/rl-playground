@@ -25,6 +25,10 @@ class Game(object):
             self.players[1].get_secret_num()
         ]
 
+        # validate secrets
+        assert self.secrets[0] in POS_NUMBERS
+        assert self.secrets[1] in POS_NUMBERS
+
         result = None
         turns = 0
         while result is None:
@@ -48,6 +52,10 @@ class Game(object):
             self.players[0].get_guess(),
             self.players[1].get_guess()
         ]
+
+        # validate guesses
+        assert guesses[0] in POS_NUMBERS
+        assert guesses[1] in POS_NUMBERS
 
         scores = [
             self._score_guess(guesses[0], self.secrets[1]),
