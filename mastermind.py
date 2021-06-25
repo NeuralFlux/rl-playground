@@ -5,7 +5,7 @@ N exploratory games between best network and itself
 10 * (2 * K * N) replay buffer
 64 mini-batch
 100 games between latest and best
-65% least winrate of latest to become best
+25% lose rate at most of latest to become best (33% random)
 detach gradient every 5th move to avoid vanishing
 do not tell each player their chance (1st or 2nd)
 """
@@ -42,8 +42,8 @@ class Game(object):
 
         # get secret numbers of each players
         self.secrets = [
-            self.players[0].get_secret_num(),
-            self.players[1].get_secret_num()
+            self.players[0].get_secret_num(first_player=True),
+            self.players[1].get_secret_num(first_player=False)
         ]
 
         # validate secrets
@@ -109,4 +109,5 @@ class Game(object):
                 assert str_guess[idx] != str_secret[idx]
                 cows += 1
         
+        assert (bulls + cows) <= 3
         return (bulls, cows)
