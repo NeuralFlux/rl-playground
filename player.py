@@ -61,13 +61,21 @@ class NNPlayer(object):
             output_size=648
         )
 
+        # personal replay buffer
+        self.p_rep_buffer = {
+            'states': [],
+            'actions': [],
+            'rewards': []
+        }
+
         self.first_act = False
         self.none_bit = torch.ones(1, dtype=torch.bool)
         self.last_guess = torch.zeros(648, dtype=torch.int)
         self.score = torch.zeros(2, dtype=torch.int)
         self.hidden_state = torch.zeros(64, dtype=torch.float)
     
-    def get_secret_num(self):
+    def get_secret_num(self, first_player):
+        self.first_player = first_player
         return random.choice(POS_NUMBERS)
     
     def get_guess(self):
@@ -95,17 +103,36 @@ class NNPlayer(object):
             self.last_guess,
             self.score,
             self.hidden_state
-        ))
+        ), dtype=torch.float)
 
         q_vals, curr_hidden_state = self.net.forward(net_input)
         self.hidden_state = curr_hidden_state
 
-        return torch.argmax(q_vals)
-        
-    
+        action = torch.argmax(q_vals)
+
+        self.p_rep_buffer['states'].append(net_input)  # NOTE python bug?
+        self.p_rep_buffer['actions'].append(action)
+        return action
+
     def set_score(self, score):
-        self.score = torch.int(score)
+        self.score = torch.tensor(score, dtype=torch.float)
+
+        reward = torch.dot(self.score, torch.tensor([1, 0.5]))
+        reward -= 0.1  # penalise every step
+        self.p_rep_buffer['rewards'].append(reward)
 
     def finish_game(self, summary):
-        # result, turns = summary
-        return
+        result, _ = summary
+        win, draw = False, (result == 0)
+        if self.first_player:
+            if result == 1:
+                win = True
+        else:
+            if result == -1:
+                win = True
+        
+        # change last reward
+        self.p_rep_buffer['rewards'][-1] = torch.tensor(
+            (win * 7) + (draw * -4) + ((not win and not draw) * -7),
+            dtype=torch.float
+        )
