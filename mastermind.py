@@ -13,33 +13,56 @@ do not tell each player their chance (1st or 2nd)
 from collections import deque
 
 from const import (
-    MAX_REPLAY_SIZE, EPSILON, NUM_EXP_MATCHES, POS_NUMBERS
+    MAX_REPLAY_SIZE, EPSILON, NUM_EXP_MATCHES, NUM_COMP_MATCHES,
+    POS_NUMBERS
 )
 
-from player import NNPlayer
+from player import NNPlayer, PlayerNet
+
+import torch.optim as optim
 
 
-class Tournament(object):
+class Trainer(object):
 
     def __init__(self) -> None:
         # (STATE, ACTION, REWARD, IS_TERMINAL_STATE)
         self.replay_buffer = deque(maxlen=MAX_REPLAY_SIZE)
+
+        # none bit + 648 actions one-hot + [bulls, cows] + hidden
+        input_size = 1 + 648 + 2 + 64
+        self.best_nn = PlayerNet(
+            input_size=input_size,
+            hidden_layer_size=64,
+            hidden_state_size=64,
+            output_size=648
+        )
+        self.optimizer = optim.Adam(self.best_nn.parameters(), lr=0.0001)
+
+        self.latest_nn = None
     
-    def play(self, style='exploratory'):
+    def simulate(self, style='exploratory'):
         if style == 'exploratory':
-            for game_idx in range(NUM_EXP_MATCHES):
-                player_one = NNPlayer(exp_const=EPSILON)
-                player_two = NNPlayer(exp_const=EPSILON)
+            EXP_CONST = EPSILON
+            NUM_MATCHES = NUM_EXP_MATCHES
+            feedforward_api_one = self.best_nn.forward
+            feedforward_api_two = self.best_nn.forward
+        elif style == 'competition':
+            EXP_CONST = 0
+            NUM_MATCHES = NUM_COMP_MATCHES
+            feedforward_api_one = self.best_nn.forward
+            feedforward_api_two = self.latest_nn.forward
+        
+        for _ in range(NUM_MATCHES):
+            player_one = NNPlayer(feedforward_api_one, exp_const=EXP_CONST)
+            player_two = NNPlayer(feedforward_api_two, exp_const=EXP_CONST)
 
-                game = Game()
-                game.start_game( (player_one, player_two) )
+            game = Game()
+            game.start_game( (player_one, player_two) )
 
+            if style == 'exploratory':
                 # NOTE destroyed if p_rep_buffer is deconstructed?
                 self.replay_buffer.extend(player_one.p_rep_buffer)
                 self.replay_buffer.extend(player_two.p_rep_buffer)
-
-        elif style == 'competition':
-            pass
     
     def train(self):
         pass

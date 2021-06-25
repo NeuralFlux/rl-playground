@@ -5,7 +5,6 @@ from const import POS_NUMBERS
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 
 
 class PlayerNet(nn.Module):
@@ -50,17 +49,9 @@ class PlayerNet(nn.Module):
 
 class NNPlayer(object):
 
-    def __init__(self, exp_const) -> None:
-
-        # none bit + 648 actions one-hot + [bulls, cows] + hidden
-        input_size = 1 + 648 + 2 + 64
-        self.net = PlayerNet(
-            input_size=input_size,
-            hidden_layer_size=64,
-            hidden_state_size=64,
-            output_size=648
-        )
-
+    def __init__(self, nn, exp_const) -> None:
+        
+        self.net = nn
         # personal replay buffer
         self.p_rep_buffer = []
         self.EXP_CONST = exp_const  # epsilon
@@ -108,7 +99,7 @@ class NNPlayer(object):
             self.hidden_state
         ), dtype=torch.float)
 
-        q_vals, curr_hidden_state = self.net.forward(net_input)
+        q_vals, curr_hidden_state = self.net(net_input)
         self.hidden_state = curr_hidden_state
 
         action = torch.argmax(q_vals)

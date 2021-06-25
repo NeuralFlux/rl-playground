@@ -3,6 +3,7 @@ EPSILON = 0.05  # prob of exploration
 GAMMA = 0.95  # reward discounting
 
 NUM_EXP_MATCHES = None
+NUM_COMP_MATCHES = None
 
 # === Player Config === #
 
