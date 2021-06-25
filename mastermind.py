@@ -11,17 +11,33 @@ do not tell each player their chance (1st or 2nd)
 """
 
 from collections import deque
-from const import MAX_REPLAY_SIZE, POS_NUMBERS
+
+from const import (
+    MAX_REPLAY_SIZE, EPSILON, NUM_EXP_MATCHES, POS_NUMBERS
+)
+
+from player import NNPlayer
 
 
 class Tournament(object):
 
     def __init__(self) -> None:
+        # (STATE, ACTION, REWARD, IS_TERMINAL_STATE)
         self.replay_buffer = deque(maxlen=MAX_REPLAY_SIZE)
     
     def play(self, style='exploratory'):
         if style == 'exploratory':
-            pass
+            for game_idx in range(NUM_EXP_MATCHES):
+                player_one = NNPlayer(exp_const=EPSILON)
+                player_two = NNPlayer(exp_const=EPSILON)
+
+                game = Game()
+                game.start_game( (player_one, player_two) )
+
+                # NOTE destroyed if p_rep_buffer is deconstructed?
+                self.replay_buffer.extend(player_one.p_rep_buffer)
+                self.replay_buffer.extend(player_two.p_rep_buffer)
+
         elif style == 'competition':
             pass
     
