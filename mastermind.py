@@ -10,7 +10,7 @@ from const import POS_NUMBERS
 
 class Game(object):
 
-    FULL_SCORE = (4, 0)
+    FULL_SCORE = (3, 0)
     def __init__(self) -> None:
         pass
 
@@ -40,6 +40,8 @@ class Game(object):
                 result -= 1
 
             turns += 1
+            players[0].set_score(scores[0])
+            players[1].set_score(scores[1])
 
         # inform players of the result
         self.players[0].finish_game((result, turns))
