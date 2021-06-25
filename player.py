@@ -50,7 +50,7 @@ class PlayerNet(nn.Module):
 
 class NNPlayer(object):
 
-    def __init__(self) -> None:
+    def __init__(self, exp_const) -> None:
 
         # none bit + 648 actions one-hot + [bulls, cows] + hidden
         input_size = 1 + 648 + 2 + 64
@@ -62,11 +62,8 @@ class NNPlayer(object):
         )
 
         # personal replay buffer
-        self.p_rep_buffer = {
-            'states': [],
-            'actions': [],
-            'rewards': []
-        }
+        self.p_rep_buffer = []
+        self.EXP_CONST = exp_const  # epsilon
 
         self.first_act = False
         self.none_bit = torch.ones(1, dtype=torch.bool)
@@ -79,22 +76,28 @@ class NNPlayer(object):
         return random.choice(POS_NUMBERS)
     
     def get_guess(self):
-        # get the best guess
-        best_act_idx = self._get_optimal_action().item()
-        best_guess = POS_NUMBERS[best_act_idx]
+        # explore with prob=EPSILON
+        if random.random() < self.EXP_CONST:
+            act_idx = random.choice(range(len(POS_NUMBERS)))
+            guess = POS_NUMBERS[act_idx]
+        else:
+            # get the best guess
+            act_idx = self._get_optimal_action().item()
+            guess = POS_NUMBERS[act_idx]
 
-        # only used for first action since last_guess is none
+        # only used for first action since input is `none`
         if not self.first_act:
             self.none_bit = torch.zeros(1, dtype=torch.bool)
             self.first_act = True
 
         # remember last guess
         self.last_guess = F.one_hot(
-            torch.tensor( best_act_idx, dtype=torch.int64 ),
+            torch.tensor( act_idx, dtype=torch.int64 ),
             648
         )
+        self.action = act_idx  # a from (s, a, r, s')
 
-        return best_guess
+        return guess
 
     def _get_optimal_action(self):
         # TODO check if proper concat happens
@@ -110,8 +113,7 @@ class NNPlayer(object):
 
         action = torch.argmax(q_vals)
 
-        self.p_rep_buffer['states'].append(net_input)  # NOTE python bug?
-        self.p_rep_buffer['actions'].append(action)
+        self.input = net_input  # s from (s, a, r, s')
         return action
 
     def set_score(self, score):
@@ -119,7 +121,14 @@ class NNPlayer(object):
 
         reward = torch.dot(self.score, torch.tensor([1, 0.5]))
         reward -= 0.1  # penalise every step
-        self.p_rep_buffer['rewards'].append(reward)
+
+        # add experience
+        self.p_rep_buffer.append( (
+            self.input,
+            self.action,
+            reward,  # r from (s, a, r, s')
+            False
+        ) )
 
     def finish_game(self, summary):
         result, _ = summary
@@ -131,8 +140,17 @@ class NNPlayer(object):
             if result == -1:
                 win = True
         
-        # change last reward
-        self.p_rep_buffer['rewards'][-1] = torch.tensor(
+        # calculate final reward
+        final_reward = torch.tensor(
             (win * 7) + (draw * -4) + ((not win and not draw) * -7),
             dtype=torch.float
+        )
+
+        # update final reward
+        partial_exp = self.p_rep_buffer[-1]
+        self.p_rep_buffer[-1] = (
+            partial_exp[0],
+            partial_exp[1],
+            final_reward,
+            True
         )
