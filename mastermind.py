@@ -1,12 +1,33 @@
 """
-4536 actions
-only 4 past guesses with guess and score
+648 actions
+K max turns per game
+N exploratory games between best network and itself
+10 * (2 * K * N) replay buffer
+64 mini-batch
+100 games between latest and best
+65% least winrate of latest to become best
+detach gradient every 5th move to avoid vanishing
 do not tell each player their chance (1st or 2nd)
 """
 
-import random
+from collections import deque
+from const import MAX_REPLAY_SIZE, POS_NUMBERS
 
-from const import POS_NUMBERS
+
+class Tournament(object):
+
+    def __init__(self) -> None:
+        self.replay_buffer = deque(maxlen=MAX_REPLAY_SIZE)
+    
+    def play(self, style='exploratory'):
+        if style == 'exploratory':
+            pass
+        elif style == 'competition':
+            pass
+    
+    def train(self):
+        pass
+
 
 class Game(object):
 
@@ -89,4 +110,3 @@ class Game(object):
                 cows += 1
         
         return (bulls, cows)
-        
