@@ -11,21 +11,26 @@ do not tell each player their chance (1st or 2nd)
 """
 
 from collections import deque
+from random import random
 
 from const import (
-    MAX_REPLAY_SIZE, EPSILON, NUM_EXP_MATCHES, NUM_COMP_MATCHES,
-    POS_NUMBERS
+    MAX_REPLAY_SIZE, EPSILON, GAMMA, NUM_EXP_MATCHES, NUM_COMP_MATCHES,
+    MINI_BATCH_SIZE, POS_NUMBERS
 )
 
 from player import NNPlayer, PlayerNet
 
+import torch
+import torch.nn.functional as F
 import torch.optim as optim
+
+from copy import deepcopy
 
 
 class Trainer(object):
 
     def __init__(self) -> None:
-        # (STATE, ACTION, REWARD, IS_TERMINAL_STATE)
+        # (STATE, ACTION, REWARD, NEXT_STATE, IS_NEXT_STATE_TERMINAL)
         self.replay_buffer = deque(maxlen=MAX_REPLAY_SIZE)
 
         # none bit + 648 actions one-hot + [bulls, cows] + hidden
@@ -61,11 +66,69 @@ class Trainer(object):
 
             if style == 'exploratory':
                 # NOTE destroyed if p_rep_buffer is deconstructed?
-                self.replay_buffer.extend(player_one.p_rep_buffer)
-                self.replay_buffer.extend(player_two.p_rep_buffer)
-    
+                self._extract_personal_buffer(player_one.p_rep_buffer)
+                self._extract_personal_buffer(player_two.p_rep_buffer)
+
+    def _extract_personal_buffer(self, buffer):
+        for idx in range(len(buffer) - 1):
+            self.replay_buffer.append( (
+                buffer[idx][0],  # S
+                buffer[idx][1],  # A
+                buffer[idx][2],  # R
+                buffer[idx + 1][0],  # S'
+                buffer[idx][3],
+            ) )
+            assert not buffer[idx][3]
+
+        # append last exp with S' as S
+        self.replay_buffer.append( (
+            buffer[-1][0],  # S
+            buffer[-1][1],  # A
+            buffer[-1][2],  # R
+            buffer[-1][0],  # S'
+            buffer[-1][3],
+        ) )
+        assert buffer[-1][3]
+
     def train(self):
-        pass
+        batch = random.sample(self.replay_buffer, MINI_BATCH_SIZE)
+
+        states = torch.zeros((MINI_BATCH_SIZE, 650 + 65), dtype=torch.float)
+        actions = torch.zeros((MINI_BATCH_SIZE), dtype=torch.int64)
+        rewards = torch.zeros((MINI_BATCH_SIZE), dtype=torch.float)
+        next_states = torch.zeros((MINI_BATCH_SIZE, 650 + 65), dtype=torch.float)
+        is_terminal = torch.zeros((MINI_BATCH_SIZE), dtype=torch.bool)
+
+        for idx, transition in enumerate(batch):
+            states[idx] = transition[0]
+            actions[idx] = transition[1]
+            rewards[idx] = transition[2]
+            next_states[idx] = transition[3]
+            is_terminal[idx] = transition[4]
+
+        # get q(s, a)
+        obs_q_vectors = self.best_nn.forward(states)
+        obs_q_values = obs_q_vectors.gather(1, actions.unsqueeze(1))
+
+        # get q'(s, a) from next_state
+        obs_next_q_vectors = self.best_nn.forward(next_states)
+        # v(s') = max_a q(s', a)
+        estim_v_values = obs_next_q_vectors.max(1)[0].detach()
+        expected_q_values = rewards + is_terminal * GAMMA * estim_v_values
+
+        # backup best net before training step
+        best_copy = deepcopy(self.best_nn)
+
+        loss = F.smooth_l1_loss(obs_q_values, expected_q_values)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        for param in self.best_nn.parameters():
+            param.grad.data.clamp_(-1, 1)
+        self.optimizer.step()
+
+        return best_copy
+        
 
 
 class Game(object):

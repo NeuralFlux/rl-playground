@@ -5,6 +5,8 @@ GAMMA = 0.95  # reward discounting
 NUM_EXP_MATCHES = None
 NUM_COMP_MATCHES = None
 
+MINI_BATCH_SIZE = None
+
 # === Player Config === #
 
 POS_NUMBERS = [
