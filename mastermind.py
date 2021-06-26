@@ -14,7 +14,7 @@ from collections import deque
 from random import random
 
 from const import (
-    MAX_REPLAY_SIZE, GAMMA, MINI_BATCH_SIZE, POS_NUMBERS
+    MAX_REPLAY_SIZE, GAMMA, MINI_BATCH_SIZE, POS_NUMBERS, MAX_TURNS
 )
 
 from player import NNPlayer, PlayerNet
@@ -46,9 +46,11 @@ class Trainer(object):
         if style == 'exploratory':
             feedforward_api_one = self.best_nn.forward
             feedforward_api_two = self.best_nn.forward
+            max_turns = MAX_TURNS
         elif style == 'competition':
             feedforward_api_one = self.best_nn.forward
             feedforward_api_two = self.latest_nn.forward
+            max_turns = float('inf')
 
         # store results
         results = torch.zeros(num_matches, dtype=torch.int64)
@@ -59,7 +61,7 @@ class Trainer(object):
             player_two = NNPlayer(feedforward_api_two, exp_const=eps)
 
             game = Game()
-            result, _ = game.start_game( (player_one, player_two) )
+            result, _ = game.start_game( (player_one, player_two), max_turns )
             results[m_idx] = result
 
             if style == 'exploratory':
@@ -81,15 +83,17 @@ class Trainer(object):
             ) )
             assert not buffer[idx][3]
 
-        # append last exp with S' as S
-        self.replay_buffer.append( (
-            buffer[-1][0],  # S
-            buffer[-1][1],  # A
-            buffer[-1][2],  # R
-            buffer[-1][0],  # S'
-            buffer[-1][3],
-        ) )
-        assert buffer[-1][3]
+        # NOTE skip the last exp if its not terminal 
+        # FIXME devise a better procedure to avoid that
+        if buffer[-1][3]:
+            # append last exp with S' as S
+            self.replay_buffer.append( (
+                buffer[-1][0],  # S
+                buffer[-1][1],  # A
+                buffer[-1][2],  # R
+                buffer[-1][0],  # S'
+                buffer[-1][3],
+            ) )
 
     def train(self):
         batch = random.sample(self.replay_buffer, MINI_BATCH_SIZE)
@@ -133,7 +137,7 @@ class Game(object):
     def __init__(self) -> None:
         pass
 
-    def start_game(self, players):
+    def start_game(self, players, max_turns):
         self.players = players
         self.NUM_PLAYERS = len(self.players)
         assert self.NUM_PLAYERS == 2
@@ -150,7 +154,7 @@ class Game(object):
 
         result = None
         turns = 0
-        while result is None:
+        while (result is None and turns < max_turns):
             # play a round and compare scores
             scores = self._play_round()
             if scores[0] == Game.FULL_SCORE:
@@ -161,6 +165,10 @@ class Game(object):
             turns += 1
             players[0].set_score(scores[0])
             players[1].set_score(scores[1])
+
+        # if max_turns over, return draw
+        if result is None:
+            return (0, turns)
 
         # inform players of the result
         self.players[0].finish_game((result, turns))

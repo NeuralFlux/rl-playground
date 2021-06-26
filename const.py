@@ -5,6 +5,8 @@ E_MIN = 0.05
 GAMMA = 0.99  # reward discounting
 
 NUM_EXP_MATCHES = None
+MAX_TURNS = None
+
 NUM_COMP_MATCHES = None
 
 MINI_BATCH_SIZE = None
@@ -12,8 +14,6 @@ MINI_BATCH_SIZE = None
 NUM_TRAIN_LOOPS = None
 
 MAX_LOSS_FRAC = None
-
-# === Player Config === #
 
 POS_NUMBERS = [
     102,
