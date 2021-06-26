@@ -1,11 +1,17 @@
 MAX_REPLAY_SIZE = 2048
-EPSILON = 0.05  # prob of exploration
-GAMMA = 0.95  # reward discounting
+EPSILON = 0.9  # prob of exploration
+E_DECAY = 0.98
+E_MIN = 0.05
+GAMMA = 0.99  # reward discounting
 
 NUM_EXP_MATCHES = None
 NUM_COMP_MATCHES = None
 
 MINI_BATCH_SIZE = None
+
+NUM_TRAIN_LOOPS = None
+
+MAX_LOSS_FRAC = None
 
 # === Player Config === #
 

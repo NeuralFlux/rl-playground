@@ -14,8 +14,7 @@ from collections import deque
 from random import random
 
 from const import (
-    MAX_REPLAY_SIZE, EPSILON, GAMMA, NUM_EXP_MATCHES, NUM_COMP_MATCHES,
-    MINI_BATCH_SIZE, POS_NUMBERS
+    MAX_REPLAY_SIZE, GAMMA, MINI_BATCH_SIZE, POS_NUMBERS
 )
 
 from player import NNPlayer, PlayerNet
@@ -23,8 +22,6 @@ from player import NNPlayer, PlayerNet
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-
-from copy import deepcopy
 
 
 class Trainer(object):
@@ -45,29 +42,33 @@ class Trainer(object):
 
         self.latest_nn = None
     
-    def simulate(self, style='exploratory'):
+    def simulate(self, eps, num_matches, style='exploratory'):
         if style == 'exploratory':
-            EXP_CONST = EPSILON
-            NUM_MATCHES = NUM_EXP_MATCHES
             feedforward_api_one = self.best_nn.forward
             feedforward_api_two = self.best_nn.forward
         elif style == 'competition':
-            EXP_CONST = 0
-            NUM_MATCHES = NUM_COMP_MATCHES
             feedforward_api_one = self.best_nn.forward
             feedforward_api_two = self.latest_nn.forward
-        
-        for _ in range(NUM_MATCHES):
-            player_one = NNPlayer(feedforward_api_one, exp_const=EXP_CONST)
-            player_two = NNPlayer(feedforward_api_two, exp_const=EXP_CONST)
+
+        # store results
+        results = torch.zeros(num_matches, dtype=torch.int64)
+
+        # play matches
+        for m_idx in range(num_matches):
+            player_one = NNPlayer(feedforward_api_one, exp_const=eps)
+            player_two = NNPlayer(feedforward_api_two, exp_const=eps)
 
             game = Game()
-            game.start_game( (player_one, player_two) )
+            result, _ = game.start_game( (player_one, player_two) )
+            results[m_idx] = result
 
             if style == 'exploratory':
                 # NOTE destroyed if p_rep_buffer is deconstructed?
                 self._extract_personal_buffer(player_one.p_rep_buffer)
                 self._extract_personal_buffer(player_two.p_rep_buffer)
+        
+        if style == 'competition':
+            return results
 
     def _extract_personal_buffer(self, buffer):
         for idx in range(len(buffer) - 1):
@@ -93,6 +94,7 @@ class Trainer(object):
     def train(self):
         batch = random.sample(self.replay_buffer, MINI_BATCH_SIZE)
 
+        # pre-process batch
         states = torch.zeros((MINI_BATCH_SIZE, 650 + 65), dtype=torch.float)
         actions = torch.zeros((MINI_BATCH_SIZE), dtype=torch.int64)
         rewards = torch.zeros((MINI_BATCH_SIZE), dtype=torch.float)
@@ -116,9 +118,6 @@ class Trainer(object):
         estim_v_values = obs_next_q_vectors.max(1)[0].detach()
         expected_q_values = rewards + is_terminal * GAMMA * estim_v_values
 
-        # backup best net before training step
-        best_copy = deepcopy(self.best_nn)
-
         loss = F.smooth_l1_loss(obs_q_values, expected_q_values)
 
         self.optimizer.zero_grad()
@@ -126,9 +125,6 @@ class Trainer(object):
         for param in self.best_nn.parameters():
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
-
-        return best_copy
-        
 
 
 class Game(object):
