@@ -13,9 +13,7 @@ do not tell each player their chance (1st or 2nd)
 from collections import deque
 from random import random
 
-from const import (
-    MAX_REPLAY_SIZE, GAMMA, MINI_BATCH_SIZE, POS_NUMBERS, MAX_TURNS
-)
+from const import GAMMA, POS_NUMBERS
 
 from player import NNPlayer, PlayerNet
 
@@ -26,9 +24,9 @@ import torch.optim as optim
 
 class Trainer(object):
 
-    def __init__(self) -> None:
+    def __init__(self, max_rep_size) -> None:
         # (STATE, ACTION, REWARD, NEXT_STATE, IS_NEXT_STATE_TERMINAL)
-        self.replay_buffer = deque(maxlen=MAX_REPLAY_SIZE)
+        self.replay_buffer = deque(maxlen=max_rep_size)
 
         # none bit + 648 actions one-hot + [bulls, cows] + hidden
         input_size = 1 + 648 + 2 + 64
@@ -42,15 +40,13 @@ class Trainer(object):
 
         self.latest_nn = None
     
-    def simulate(self, eps, num_matches, style='exploratory'):
+    def simulate(self, eps, num_matches, max_turns, style='exploratory'):
         if style == 'exploratory':
             feedforward_api_one = self.best_nn.forward
             feedforward_api_two = self.best_nn.forward
-            max_turns = MAX_TURNS
         elif style == 'competition':
             feedforward_api_one = self.best_nn.forward
             feedforward_api_two = self.latest_nn.forward
-            max_turns = float('inf')
 
         # store results
         results = torch.zeros(num_matches, dtype=torch.int64)
@@ -95,15 +91,15 @@ class Trainer(object):
                 buffer[-1][3],
             ) )
 
-    def train(self):
-        batch = random.sample(self.replay_buffer, MINI_BATCH_SIZE)
+    def train(self, mb_size):
+        batch = random.sample(self.replay_buffer, mb_size)
 
         # pre-process batch
-        states = torch.zeros((MINI_BATCH_SIZE, 650 + 65), dtype=torch.float)
-        actions = torch.zeros((MINI_BATCH_SIZE), dtype=torch.int64)
-        rewards = torch.zeros((MINI_BATCH_SIZE), dtype=torch.float)
-        next_states = torch.zeros((MINI_BATCH_SIZE, 650 + 65), dtype=torch.float)
-        is_terminal = torch.zeros((MINI_BATCH_SIZE), dtype=torch.bool)
+        states = torch.zeros((mb_size, 650 + 65), dtype=torch.float)
+        actions = torch.zeros((mb_size), dtype=torch.int64)
+        rewards = torch.zeros((mb_size), dtype=torch.float)
+        next_states = torch.zeros((mb_size, 650 + 65), dtype=torch.float)
+        is_terminal = torch.zeros((mb_size), dtype=torch.bool)
 
         for idx, transition in enumerate(batch):
             states[idx] = transition[0]

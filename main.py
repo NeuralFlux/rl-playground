@@ -3,24 +3,26 @@ import torch
 from mastermind import Trainer
 
 from const import (
-    NUM_TRAIN_LOOPS, MAX_LOSS_FRAC, NUM_COMP_MATCHES,
-    EPSILON, E_DECAY, E_MIN
+    NUM_EXP_MATCHES, NUM_TRAIN_LOOPS, MAX_LOSS_FRAC, NUM_COMP_MATCHES,
+    EPSILON, E_DECAY, E_MIN,
+    MAX_REPLAY_SIZE, MINI_BATCH_SIZE, MAX_TURNS
 )
 
 from copy import deepcopy
 
 if __name__ == "__main__":
-    T = Trainer()
+    T = Trainer(MAX_REPLAY_SIZE)
     eps = EPSILON
 
     while True:
         # simulate matches between best nets
-        T.simulate('exploratory')
+        T.simulate(eps, NUM_EXP_MATCHES, MAX_TURNS, 'exploratory')
 
         # train loops
         best_copy = deepcopy(T.best_nn)
-        for t_idx in range(NUM_TRAIN_LOOPS):
-            T.train()
+        if len(T.replay_buffer) > MINI_BATCH_SIZE:
+            for t_idx in range(NUM_TRAIN_LOOPS):
+                T.train(MINI_BATCH_SIZE)
 
         # despite a bit of an unconventional naming, latest_nn is the
         # newly trained nn. best_nn is still the one before training
@@ -29,7 +31,11 @@ if __name__ == "__main__":
 
         # compete latest and best
         with torch.no_grad():
-            results = T.simulate('competition')
+            results = T.simulate(0,
+                NUM_COMP_MATCHES,
+                float('inf'),
+                'competition'
+            )
 
         # NOTE assuming best_nn is player_one
         # and latest_nn is player_two
